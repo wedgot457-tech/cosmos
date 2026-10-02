@@ -1,0 +1,154 @@
+// COSMOS database schema
+// Run `npm run db:push` after setting DATABASE_URL to create these tables.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// One row per visitor, created the first time their anonymous cookie is seen.
+model User {
+  id          String   @id @default(uuid())
+  username    String   @unique
+  avatarUrl   String?
+  level       Int      @default(1)
+  isAdmin     Boolean  @default(false)
+  isBanned    Boolean  @default(false)
+  isBlocked   Boolean  @default(false)
+  banReason   String?  @db.VarChar(500)
+  blockReason String?  @db.VarChar(500)
+  createdAt   DateTime @default(now())
+  lastSeenIp  String?
+
+  libraryEntries LibraryEntry[]
+  comments       Comment[]
+  activity       Activity[]
+}
+
+// Shared catalog of titles. Populated via the AniList auto-fill search.
+// Only admin can edit the poster field, so it stays consistent site-wide.
+model MediaEntry {
+  id            String   @id @default(uuid())
+  anilistId     Int?     @unique
+  title         String
+  type          MediaType
+  posterUrl     String?
+  synopsis      String?  @db.Text
+  totalUnits    Int? // total episodes or chapters
+  globalRating  Float?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  libraryEntries LibraryEntry[]
+}
+
+enum MediaType {
+  ANIME
+  MANGA
+  MANHWA
+}
+
+// A single user's personal tracking of a title: their own progress,
+// status, and personal score. Never affects other users' view of the title.
+model LibraryEntry {
+  id             String       @id @default(uuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mediaEntryId   String
+  mediaEntry     MediaEntry   @relation(fields: [mediaEntryId], references: [id], onDelete: Cascade)
+  progress       Int          @default(0)
+  status         EntryStatus  @default(PLAN_TO_WATCH)
+  personalScore  Float?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  comments Comment[]
+
+  @@unique([userId, mediaEntryId])
+}
+
+enum EntryStatus {
+  IN_PROGRESS
+  COMPLETED
+  PAUSED
+  DROPPED
+  BACKLOG
+  PLAN_TO_WATCH
+}
+
+// Flat (non-threaded) comments on a library entry's title.
+model Comment {
+  id             String       @id @default(uuid())
+  body           String       @db.Text
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  libraryEntryId String
+  libraryEntry   LibraryEntry @relation(fields: [libraryEntryId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+}
+
+model Activity {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String   @db.VarChar(40)
+  detail    String   @db.VarChar(500)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model AdminAuditLog {
+  id             String   @id @default(uuid())
+  adminId        String
+  targetUserId   String
+  targetUsername String   @db.VarChar(24)
+  action         String   @db.VarChar(40)
+  reason         String?  @db.VarChar(500)
+  createdAt      DateTime @default(now())
+
+  @@index([targetUserId, createdAt])
+  @@index([createdAt])
+}
+
+// Admin-editable site content: news posts.
+model NewsPost {
+  id        String   @id @default(uuid())
+  tag       String // ANNOUNCEMENT | BREAKING | BOX OFFICE, etc.
+  headline  String
+  imageUrl  String?
+  createdAt DateTime @default(now())
+}
+
+// Admin-editable weekly broadcast schedule entries.
+model ScheduleEntry {
+  id        String @id @default(uuid())
+  dayOfWeek Int // 0 = Monday ... 6 = Sunday
+  title     String
+  episode   Int
+  airTime   String
+}
+
+// Admin-editable trivia facts.
+model TriviaFact {
+  id     String @id @default(uuid())
+  tag    String // e.g. "DRAGON BALL"
+  fact   String @db.Text
+}
+
+// Single-row table holding the live theme colors admin controls.
+model SiteTheme {
+  id              Int    @id @default(1)
+  colorBase       String @default("#05050a")
+  colorSurface    String @default("#0d0d16")
+  colorAccentPrimary   String @default("#22d3ee") // cyan
+  colorAccentSecondary String @default("#ec4899") // pink
+  colorAccentTertiary  String @default("#a855f7") // purple
+  heroVideoUrl    String?
+  copy            Json?
+  updatedAt       DateTime @updatedAt
+}

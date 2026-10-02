@@ -1,0 +1,25 @@
+{
+  "name": "cosmos-anime-library",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env scripts/dev.js",
+    "start": "node --env-file-if-exists=.env scripts/dev.js",
+    "build": "prisma generate && node scripts/check.js",
+    "lint": "node scripts/check.js",
+    "postinstall": "prisma generate",
+    "test": "node --test tests/*.test.js",
+    "db:push": "prisma db push"
+  },
+  "dependencies": {
+    "@prisma/client": "5.22.0",
+    "@vercel/blob": "2.8.0"
+  },
+  "devDependencies": {
+    "prisma": "5.22.0"
+  }
+}
